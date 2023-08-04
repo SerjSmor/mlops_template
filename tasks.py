@@ -1,4 +1,8 @@
+import os
+
 from invoke import task
+
+ARCHIVED_EXPERIMENTS = "archived_experiments"
 
 BEST_MODEL = "s3://...//model.pth"
 S3_CSV_PATH = "s3://.../data.csv"
@@ -22,3 +26,27 @@ def pipeline(c, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, learning_r
     prepare_data_for_pipeline()
     c.run(f"python preproces.py")
     c.run(f"python train.py --epochs {epochs} --batch-size {batch_size} --learning-rate {learning_rate}")
+
+
+@task
+def archive(c, experiment_name):
+    if not os.path.exists(ARCHIVED_EXPERIMENTS):
+        os.makedirs(ARCHIVED_EXPERIMENTS)
+    experiment_path = os.path.join(ARCHIVED_EXPERIMENTS, experiment_name)
+    os.makedirs(experiment_path)
+
+    c.run(f"mv data {experiment_path}/")
+    c.run(f"mv models {experiment_path}/")
+    c.run("mkdir data")
+    c.run("mkdir models")
+
+
+@task
+def sync_from_remote(c, bucket):
+    c.run(f"aws s3 sync s3://{bucket}/{ARCHIVED_EXPERIMENTS} {ARCHIVED_EXPERIMENTS}")
+
+
+@task
+def sync_to_remote(c, bucket):
+    c.run(f"aws s3 sync {ARCHIVED_EXPERIMENTS}/ s3://{bucket}/{ARCHIVED_EXPERIMENTS}")
+
